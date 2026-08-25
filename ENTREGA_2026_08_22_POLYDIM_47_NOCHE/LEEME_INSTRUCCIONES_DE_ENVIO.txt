@@ -1,0 +1,30 @@
+================================================================================
+INSTRUCCIONES DE ENVIO Y EJECUCIÓN - POLYDIM V47 NOCHE
+================================================================================
+
+1. PARA SUBIR A IAs WEB (Claude, Kimi, ChatGPT, DeepSeek, GLM):
+--------------------------------------------------------------------------------
+- Sube ÚNICAMENTE el archivo:
+  PROMPT_CONSOLIDADO_PARA_IAS.txt  (Tamaño: ~75.7 KB)
+
+- ¿Por qué?
+  Este único archivo .txt reúne:
+  a) El Prompt Maestro de Evaluación Red Team (Modo Bulldog).
+  b) La especificación teórica del Whitebook V47.
+  c) La fundamentación de cada módulo.
+  d) Todo el código fuente en texto plano UTF-8 (C++, Rust, Python, Suite).
+
+  Cero adjuntos sueltos, cero binarios no leíbles.
+
+--------------------------------------------------------------------------------
+2. PARA EJECUTAR EN TU MÁQUINA LOCAL O SILICIO:
+--------------------------------------------------------------------------------
+- Abre la terminal en esta carpeta:
+  E:\POLYDIM_EINSOF\ENTREGA_2026_08_22_POLYDIM_47_NOCHE\
+
+- Ejecuta el monolito:
+  python polydim_v47_monolito.py
+
+  El script auto-detecta la CPU, compila slerp_kernel_v47.cpp (MSVC/GCC) y 
+  lib_v47.rs (rustc), enlaza las DLLs vía ctypes y ejecuta los 37 tests.
+================================================================================

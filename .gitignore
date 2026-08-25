@@ -1,0 +1,10 @@
+_HISTORICO/
+_HISTORICO/*
+*.dat
+*.npy
+*.pt
+*.bin
+*.dll
+*.exe
+*.pyc
+__pycache__/

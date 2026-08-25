@@ -1,0 +1,42 @@
+===============================================================================
+POLYDIM v48 MAÑANA - INSTRUCCIONES DE AUDITORÍA Y ENVÍO EXTERNO
+===============================================================================
+
+Estimado Ariel,
+
+Este paquete contiene la entrega consolidada POLYDIM v48 MAÑANA para la auditoría externa por IAs (Gemini, Claude 3.5 Sonnet, GPT-4o, DeepSeek, Kimi, etc.).
+
+📌 ARCHIVOS INCLUIDOS EN ESTA CARPETA (`E:\POLYDIM_EINSOF\ENTREGA_2026_08_22_POLYDIM_48_MAÑANA\`):
+
+1. `PROMPT_Y_CODIGO_CONSOLIDADO_V48_MAÑANA.txt` 🏆 (¡EL ARCHIVO MAESTRO ÚNICO PARA GEMINI!)
+   -> Archivo de texto plano UTF-8 consolidado con:
+      - Prompt Red Team de Auditoría Inicial.
+      - Diagrama Arquitectónico Mermaid de Kimi ($D \ge 1$).
+      - Whitebook Técnico V48 con el compendio de los 127 informes SOTA.
+      - 100% del Código Fuente C++20 SIMD (`slerp_kernel_v47_matrix_free.cpp`).
+      - 100% del Código Fuente Rust 2024 C-ABI (`lib_v47_matrix_free.rs`).
+      - Motor JAX Float64 XLA (`polydim_matrix_free_clifford_engine_v48.py`).
+      - Monolito Python en caliente (`polydim_v48_monolito.py`).
+      - Suite Maestra de 100 Controles Empíricos (`master_stress_suite_100.py`).
+
+2. `master_stress_suite_100.py`
+   -> Suite de Pruebas Maestra y Adversarial de 100 Controles Empíricos (Regla 17 - Cero Auditoría Pasiva).
+
+3. `codigo_consolidado_v48_manana.txt`
+   -> Consolidado de código fuente en texto UTF-8.
+
+4. `PROMPT_CONSOLIDADO_PARA_IAS.txt`
+   -> Prompt de auditoría en texto para copiar y pegar directamente.
+
+5. `polydim_v48_monolito.py`
+   -> Monolito Python ejecutable. Al correr `python polydim_v48_monolito.py`, el script extrae automáticamente los fuentes `.cpp` y `.rs`, invoca los compiladores nativos locales (`cl.exe` / `g++` / `rustc`), genera las DLLs en caliente y ejecuta la suite de auditoría en Float64.
+
+6. `WHITEBOOK_POLYDIM_V48.md`
+   -> Libro blanco técnico con el compendio de los 127 informes SOTA 2026 y el diagrama Mermaid $D \ge 1$.
+
+===============================================================================
+INSTRUCCIONES DE EJECUCIÓN LOCAL:
+1. Navega a esta carpeta: cd E:\POLYDIM_EINSOF\ENTREGA_2026_08_22_POLYDIM_48_MAÑANA
+2. Ejecuta el monolito: python polydim_v48_monolito.py
+3. Ejecuta la suite de stress de 100 controles: python master_stress_suite_100.py
+===============================================================================

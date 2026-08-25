@@ -1,0 +1,18 @@
+[package]
+name = "polydim_rust_core"
+version = "47.0.0"
+edition = "2021"
+authors = ["POLYDIM Kernel Team"]
+description = "Módulo de Memoria Tensorial MPMC Lock-Free y C-FFI para POLYDIM V47"
+
+[lib]
+name = "lib_v47"
+crate-type = ["cdylib", "rlib"]
+path = "lib_v47.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

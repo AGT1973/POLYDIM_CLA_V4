@@ -1,0 +1,747 @@
+﻿"""
+POLYDIM EINSOF V44 â€” Motor JAX / GeometrÃ­a Riemanniana en S^(D-1) y Stiefel V_k(R^D)
+=======================================================================================
+EdiciÃ³n Congelada SOTA â€” ConsolidaciÃ³n de 5 auditorÃ­as Red-Team (Ago 2026).
+
+Parches aplicados (V43 â†’ V44):
+  [FIX-01] NormalizaciÃ³n Kahan post-antipodal en fallback NumPy (Kimi #1)
+  [FIX-02] Guarda sin_omega en rÃ©gimen batch normal (Kimi #3A)
+  [FIX-03] Broadcast seguro de T_arr con validaciÃ³n ndim (Kimi #3B / #20)
+  [FIX-04] HKDF RFC 5869 real con salt por nodo (Kimi #4B)
+  [FIX-05] MAX_EPOCH_JUMP anti-DoS (Kimi #4A)
+  [FIX-06] SHAKE-256 XOF directo â€” mata PCG64 thread-unsafe (Kimi #7 / #10)
+  [FIX-07] Protocolo HMAC unificado con domain separator (Kimi #9)
+  [FIX-08] validate_finite_vector: guarda ndim==1 (Kimi #11)
+  [FIX-09] project_stiefel: guarda D >= K (Kimi #12)
+  [FIX-10] PmtpStatefulReceiver: window_size validado (Kimi #13)
+  [FIX-11] estimate_kappa_power: regularizaciÃ³n relativa (Kimi #14)
+  [FIX-12] _validate_finite_matrix para tsqr/cholesky/frÃ©chet (Kimi #17)
+  [FIX-13] Tag length guard en verify_and_accept (Kimi #19)
+  [FIX-14] frechet_mean: tangente de vectors[idx] no de mu (Kimi/propia)
+
+NOTA ARQUITECTÃ“NICA: slerp_batch NO es jit-able por JAX debido al loop Python
+puro en la precomputaciÃ³n de tangentes antipodales.
+"""
+
+import os
+import sys
+import math
+import hashlib
+import hmac
+import numpy as np
+from typing import Tuple, Union, Optional, Dict, Any
+
+# Forzar backend JAX en Float64
+os.environ.setdefault("JAX_ENABLE_X64", "1")
+
+try:
+    import jax
+    import jax.numpy as jnp
+    JAX_OK = True
+    _test_f64 = jnp.array(1.0, dtype=jnp.float64)
+    if _test_f64.dtype != jnp.float64:
+        JAX_OK = False
+except Exception:
+    import numpy as jnp
+    JAX_OK = False
+
+
+# ============================================================================
+# 0. HKDF RFC 5869 (BLAKE2b-512) â€” [FIX-04]
+# ============================================================================
+
+def hkdf_extract(salt: bytes, ikm: bytes) -> bytes:
+    """RFC 5869 Extract: PRK = HMAC-Hash(salt, IKM)."""
+    if not salt:
+        salt = bytes(64)  # TamaÃ±o de bloque de BLAKE2b
+    return hmac.new(salt, ikm, hashlib.blake2b).digest()
+
+
+def hkdf_expand(prk: bytes, info: bytes, length: int = 64) -> bytes:
+    """RFC 5869 Expand: OKM = T(1) || T(2) || ... || T(N)."""
+    hash_len = 64  # BLAKE2b-512
+    n = (length + hash_len - 1) // hash_len
+    if n > 255:
+        raise ValueError("HKDF-Expand limit exceeded (max 255 * HashLen)")
+    okm = b""
+    previous = b""
+    for i in range(1, n + 1):
+        previous = hmac.new(prk, previous + info + bytes([i]), hashlib.blake2b).digest()
+        okm += previous
+    return okm[:length]
+
+
+# ============================================================================
+# 1. CONTRATO DE SILICIO DINÃMICO (AXIOMA CERO PURO)
+# ============================================================================
+
+def machine_eps(dtype=np.float64) -> float:
+    """Epsilon de mÃ¡quina derivado dinÃ¡micamente."""
+    return float(np.finfo(dtype).eps)
+
+
+def machine_tiny(dtype=np.float64) -> float:
+    """MÃ­nimo flotante positivo normalizado."""
+    return float(np.finfo(dtype).tiny)
+
+
+def theta_small(dtype=np.float64) -> float:
+    """Umbral de Taylor para Ã¡ngulos infinitesimales: 16 * eps."""
+    return 16.0 * machine_eps(dtype)
+
+
+def theta_antipodal(dtype=np.float64) -> float:
+    """
+    Umbral antipodal canÃ³nico V42.1 derivado del punto donde sin(omega)
+    realmente underflowa: max(100 * eps, eps^(2/3)) ~ 3.67e-11 rad en Float64.
+    """
+    eps = machine_eps(dtype)
+    return max(100.0 * eps, eps ** (2.0 / 3.0))
+
+
+# ============================================================================
+# 2. VALIDACIÃ“N DE ENTRADAS Y MEMORIA (PREFLIGHT SOTA)
+# ============================================================================
+
+def validate_finite_vector(v: np.ndarray, name: str = "vector"):
+    """
+    Verifica que el vector no contenga NaNs, Infs, dimensiÃ³n cero o norma cero.
+    [FIX-08] Agrega guarda ndim == 1.
+    """
+    if v is None:
+        raise ValueError(f"{name} es None")
+    v = np.asarray(v)
+    if v.ndim != 1:
+        raise ValueError(f"{name} debe ser 1D, got shape {v.shape}")
+    D = len(v)
+    if D == 0:
+        raise ValueError(f"{name} no puede estar vacÃ­o")
+    if D < 2:
+        raise ValueError(f"{name} dimensiÃ³n {D} invÃ¡lida para S^(D-1); se requiere D >= 2")
+    if not np.all(np.isfinite(v)):
+        raise ValueError(f"{name} contiene valores no finitos (NaN o Inf)")
+    nrm = float(np.linalg.norm(v))
+    if nrm < machine_tiny(v.dtype):
+        raise ValueError(f"{name} tiene norma prÃ¡cticamente cero")
+    return v.astype(np.float64, copy=False)
+
+
+def _validate_finite_matrix(A: np.ndarray, name: str = "matrix") -> np.ndarray:
+    """
+    [FIX-12] Rechaza matrices con NaN o Inf ANTES de cualquier cÃ³mputo.
+    Un NaN en la entrada hace que las guardas de calidad (ortho_gap, etc.) mientan.
+    """
+    A = np.asarray(A, dtype=np.float64)
+    if not np.all(np.isfinite(A)):
+        raise ValueError(f"{name} contiene NaN o Inf. Entrada corrupta.")
+    return A
+
+
+def check_memory_available(required_bytes: int, safety_margin: float = 0.8):
+    """Preflight de memoria para evitar OOM silenciosos."""
+    try:
+        import psutil
+        available = psutil.virtual_memory().available
+        if required_bytes > available * safety_margin:
+            raise MemoryError(
+                f"Memoria insuficiente: requiere {required_bytes / 1e9:.2f} GB, "
+                f"disponible {available / 1e9:.2f} GB (margen {safety_margin*100:.0f}%)"
+            )
+    except ImportError:
+        pass
+
+
+# ============================================================================
+# 3. GENERADOR DETERMINISTA DE TANGENTES XOF (SHAKE-256) â€” [FIX-06]
+# ============================================================================
+
+def deterministic_tangent(p: np.ndarray) -> np.ndarray:
+    """
+    Genera vector tangente ortogonal unitario v âŠ¥ p en S^(D-1).
+
+    [FIX-06] SHAKE-256 como XOF directo. Cero PRNG. Cero thread-unsafety.
+    PCG64 eliminado porque no es thread-safe bajo concurrencia.
+
+    [FIX-06b] Los bytes crudos de SHAKE-256 se convierten a uint64 y luego
+    a floats uniformes en [-0.5, 0.5). Interpretar bytes directamente como
+    float64 producÃ­a NaN/Inf/overflow porque patrones de bits arbitrarios
+    incluyen exponents invÃ¡lidos IEEE 754 (0x7FF = NaN/Inf).
+    """
+    p = validate_finite_vector(p, "p")
+    D = len(p)
+    eps = machine_eps(np.float64)
+    tiny = machine_tiny(np.float64)
+
+    sub_sample = np.ascontiguousarray(p[:min(D, 128)])
+
+    # XOF directo: D * 8 bytes de salida determinista
+    raw_bytes = hashlib.shake_256(sub_sample.tobytes()).digest(D * 8)
+
+    # ConversiÃ³n segura: bytes â†’ uint64 â†’ uniform [-0.5, 0.5)
+    # (uint64 >> 11) / 2^53 genera un float64 en [0, 1) con 53 bits de mantisa
+    uint_arr = np.frombuffer(raw_bytes, dtype=np.uint64, count=D)
+    v_raw = ((uint_arr >> np.uint64(11)).astype(np.float64) / (2.0**53)) - 0.5
+
+    # Gram-Schmidt: proyectar fuera de p
+    dot_val = float(np.dot(v_raw, p))
+    v = v_raw - dot_val * p
+    v_norm = float(np.linalg.norm(v))
+
+    if v_norm < theta_small(np.float64):
+        # Fallback: usar el eje canÃ³nico con menor componente en p
+        min_idx = int(np.argmin(np.abs(p)))
+        v = np.zeros(D, dtype=np.float64)
+        v[min_idx] = 1.0
+        v -= p[min_idx] * p
+        v_norm = float(np.linalg.norm(v))
+
+    return v / (v_norm + tiny)
+
+
+# ============================================================================
+# 4. SLERP GEODÃ‰SICO ESCALAR Y BATCH VECTORIZADO
+# ============================================================================
+
+def slerp_stable(p: np.ndarray, q: np.ndarray, t: float) -> np.ndarray:
+    """
+    SLERP geodÃ©sico en S^(D-1) con validaciÃ³n estricta y umbral antipodal realista.
+    """
+    p = validate_finite_vector(p, "p")
+    q = validate_finite_vector(q, "q")
+
+    p = np.asarray(p, dtype=np.float64)
+    q = np.asarray(q, dtype=np.float64)
+    eps = machine_eps(np.float64)
+    tiny = machine_tiny(np.float64)
+
+    p_norm = np.linalg.norm(p)
+    q_norm = np.linalg.norm(q)
+    p_unit = p / (p_norm + tiny)
+    q_unit = q / (q_norm + tiny)
+
+    d_norm = float(np.linalg.norm(p_unit - q_unit))
+    s_norm = float(np.linalg.norm(p_unit + q_unit))
+    omega = 2.0 * math.atan2(d_norm, s_norm)
+
+    # 1. RÃ©gimen Taylor (theta ~ 0)
+    if omega < theta_small(np.float64):
+        result = p_unit + t * (q_unit - p_unit)
+        return result / (np.linalg.norm(result) + tiny)
+
+    # 2. RÃ©gimen Antipodal (theta ~ pi)
+    if s_norm < theta_antipodal(np.float64):
+        v = deterministic_tangent(p_unit)
+        result = p_unit * math.cos(t * math.pi) + v * math.sin(t * math.pi)
+        return result / (np.linalg.norm(result) + tiny)
+
+    # 3. RÃ©gimen Normal
+    sin_omega = math.sin(omega)
+    if abs(sin_omega) < eps:
+        result = p_unit + t * (q_unit - p_unit)
+        return result / (np.linalg.norm(result) + tiny)
+
+    s0 = math.sin((1.0 - t) * omega) / sin_omega
+    s1 = math.sin(t * omega) / sin_omega
+    result = s0 * p_unit + s1 * q_unit
+    return result / (np.linalg.norm(result) + tiny)
+
+
+def slerp_batch(P: np.ndarray, Q: np.ndarray, t) -> np.ndarray:
+    """
+    SLERP batch vectorizado sobre N pares en R^(N x D).
+
+    NOTA ARQUITECTÃ“NICA: Esta funciÃ³n NO es jit-able por JAX debido al loop
+    Python puro en la precomputaciÃ³n de tangentes antipodales.
+    """
+    P = np.asarray(P, dtype=np.float64)
+    Q = np.asarray(Q, dtype=np.float64)
+    if P.shape != Q.shape or P.ndim != 2:
+        raise ValueError("P y Q deben ser matrices 2D con formas idÃ©nticas")
+
+    N, D = P.shape
+    eps = machine_eps(np.float64)
+    tiny = machine_tiny(np.float64)
+
+    # ValidaciÃ³n de vectores no nulos
+    p_norms = np.linalg.norm(P, axis=1)
+    q_norms = np.linalg.norm(Q, axis=1)
+    if np.any(p_norms < tiny) or np.any(q_norms < tiny):
+        raise ValueError("slerp_batch: vectores de norma cero detectados")
+
+    # [FIX-03] Broadcast seguro de T_arr con validaciÃ³n ndim
+    if np.isscalar(t):
+        T_arr = np.full(N, float(t), dtype=np.float64)
+    else:
+        T_arr = np.asarray(t, dtype=np.float64)
+        if T_arr.ndim == 0:
+            T_arr = np.full(N, float(T_arr), dtype=np.float64)
+        elif T_arr.size == 1:
+            T_arr = np.full(N, float(T_arr.item()), dtype=np.float64)
+        else:
+            if T_arr.ndim != 1:
+                raise ValueError(f"t debe ser escalar o array 1D. Got shape {T_arr.shape}")
+            if T_arr.shape[0] != N:
+                raise ValueError(
+                    f"t array length ({T_arr.shape[0]}) must match batch size N ({N})"
+                )
+
+    P_unit = P / (p_norms[:, None] + tiny)
+    Q_unit = Q / (q_norms[:, None] + tiny)
+
+    d_norms = np.linalg.norm(P_unit - Q_unit, axis=1)
+    s_norms = np.linalg.norm(P_unit + Q_unit, axis=1)
+    omegas = 2.0 * np.arctan2(d_norms, s_norms)
+
+    t_small_val = theta_small(np.float64)
+    t_anti_val = theta_antipodal(np.float64)
+
+    anti_mask = s_norms < t_anti_val
+    V_anti = np.zeros_like(P_unit)
+    if np.any(anti_mask):
+        for idx in np.where(anti_mask)[0]:
+            V_anti[idx] = deterministic_tangent(P_unit[idx])
+
+    out = np.empty_like(P_unit)
+
+    if JAX_OK:
+        def _jax_single_slerp(p_i, q_i, t_i, om_i, s_norm_i, is_anti_i, v_anti_i):
+            is_near0 = om_i < t_small_val
+            lerp_val = p_i + t_i * (q_i - p_i)
+            lerp_res = lerp_val / (jnp.linalg.norm(lerp_val) + tiny)
+
+            anti_val = p_i * jnp.cos(t_i * jnp.pi) + v_anti_i * jnp.sin(t_i * jnp.pi)
+            anti_res = anti_val / (jnp.linalg.norm(anti_val) + tiny)
+
+            sin_om = jnp.sin(om_i)
+            safe_sin = jnp.where(is_near0, 1.0, sin_om)
+            s0 = jnp.sin((1.0 - t_i) * om_i) / safe_sin
+            s1 = jnp.sin(t_i * om_i) / safe_sin
+            norm_val = s0 * p_i + s1 * q_i
+            norm_res = norm_val / (jnp.linalg.norm(norm_val) + tiny)
+
+            return jnp.where(is_near0, lerp_res, jnp.where(is_anti_i, anti_res, norm_res))
+
+        P_jax = jnp.asarray(P_unit, dtype=jnp.float64)
+        Q_jax = jnp.asarray(Q_unit, dtype=jnp.float64)
+        T_jax = jnp.asarray(T_arr, dtype=jnp.float64)
+        Om_jax = jnp.asarray(omegas, dtype=jnp.float64)
+        S_jax = jnp.asarray(s_norms, dtype=jnp.float64)
+        Mask_jax = jnp.asarray(anti_mask, dtype=jnp.bool_)
+        V_anti_jax = jnp.asarray(V_anti, dtype=jnp.float64)
+
+        vmapped = jax.vmap(_jax_single_slerp)(
+            P_jax, Q_jax, T_jax, Om_jax, S_jax, Mask_jax, V_anti_jax
+        )
+        return np.asarray(vmapped)
+    else:
+        # ---- Fallback NumPy vectorizado ----
+
+        # RÃ©gimen Taylor (omega ~ 0)
+        mask_small = omegas < t_small_val
+        if np.any(mask_small):
+            t_s = T_arr[mask_small]
+            p_s = P_unit[mask_small]
+            q_s = Q_unit[mask_small]
+            out_s = p_s + t_s[:, None] * (q_s - p_s)
+            nrm = np.linalg.norm(out_s, axis=1)
+            nrm_ok = nrm > eps
+            out_s[nrm_ok] /= nrm[nrm_ok][:, None]
+            out_s[~nrm_ok] = p_s[~nrm_ok]
+            out[mask_small] = out_s
+
+        # [FIX-01] RÃ©gimen Antipodal con normalizaciÃ³n explÃ­cita
+        mask_anti = (~mask_small) & anti_mask
+        if np.any(mask_anti):
+            v_a = V_anti[mask_anti]
+            p_a = P_unit[mask_anti]
+            t_a = T_arr[mask_anti]
+            cos_t = np.cos(t_a * np.pi)
+            sin_t = np.sin(t_a * np.pi)
+            res_anti = p_a * cos_t[:, None] + v_a * sin_t[:, None]
+            # NormalizaciÃ³n obligatoria (faltaba en V43)
+            nrm = np.linalg.norm(res_anti, axis=1)
+            nrm_ok = nrm > eps
+            res_anti[nrm_ok] /= nrm[nrm_ok][:, None]
+            res_anti[~nrm_ok] = p_a[~nrm_ok]
+            out[mask_anti] = res_anti
+
+        # [FIX-02] RÃ©gimen Normal con guarda sin_omega
+        mask_norm = ~mask_small & ~mask_anti
+        if np.any(mask_norm):
+            p_n = P_unit[mask_norm]
+            q_n = Q_unit[mask_norm]
+            t_n = T_arr[mask_norm]
+            om_n = omegas[mask_norm]
+            sin_om = np.sin(om_n)
+
+            # Guarda de sin_omega pequeÃ±o (paridad con slerp_stable escalar)
+            sin_guard = np.abs(sin_om) < eps
+            out_n = np.empty_like(p_n)
+
+            if np.any(sin_guard):
+                lerp_vals = (p_n[sin_guard]
+                             + t_n[sin_guard][:, None] * (q_n[sin_guard] - p_n[sin_guard]))
+                lerp_nrm = np.linalg.norm(lerp_vals, axis=1)
+                l_ok = lerp_nrm > eps
+                lerp_vals[l_ok] /= lerp_nrm[l_ok][:, None]
+                lerp_vals[~l_ok] = p_n[sin_guard][~l_ok]
+                out_n[sin_guard] = lerp_vals
+
+            if not np.all(sin_guard):
+                normal_mask = ~sin_guard
+                s0 = np.sin((1.0 - t_n[normal_mask]) * om_n[normal_mask]) / sin_om[normal_mask]
+                s1 = np.sin(t_n[normal_mask] * om_n[normal_mask]) / sin_om[normal_mask]
+                norm_vals = s0[:, None] * p_n[normal_mask] + s1[:, None] * q_n[normal_mask]
+                norm_nrm = np.linalg.norm(norm_vals, axis=1)
+                n_ok = norm_nrm > eps
+                norm_vals[n_ok] /= norm_nrm[n_ok][:, None]
+                norm_vals[~n_ok] = p_n[normal_mask][~n_ok]
+                out_n[normal_mask] = norm_vals
+
+            out[mask_norm] = out_n
+
+        return out
+
+
+# ============================================================================
+# 5. TSQR-HR PRE-ASIGNADO CON COTA DE HIGHAM
+# ============================================================================
+
+def tsqr_blocked(A: np.ndarray, block_size: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Tree-TSQR con Householder Reconstruction sobre bÃºfer pre-asignado contiguo.
+    Cota teÃ³rica de Higham (1996): ||Q^T Q - I_K||_2 <= c * D * eps_mach.
+    """
+    if A.ndim != 2:
+        raise ValueError("A debe ser una matriz bidimensional")
+
+    A = _validate_finite_matrix(A, "A")  # [FIX-12]
+    D, K = A.shape
+
+    if D < K:
+        raise ValueError(f"TSQR requiere D >= K. Obtenido D={D}, K={K}")
+
+    if block_size is None or block_size <= 0:
+        block_size = max(K * 2, min(D, 4096))
+    else:
+        block_size = max(int(block_size), K)
+
+    n_blocks = int(math.ceil(D / block_size))
+
+    # Guarda de re-balanceo anti-bloque corto: garantiza que cada bloque tenga
+    # al menos K filas para estabilidad numÃ©rica del QR local. NO eliminar.
+    while n_blocks > 1 and (D - (n_blocks - 1) * block_size) < K:
+        n_blocks -= 1
+        block_size = int(math.ceil(D / n_blocks))
+        block_size = max(block_size, K)
+
+    if K > 128 or n_blocks == 1:
+        return np.linalg.qr(A, mode='reduced')
+
+    Q_local_blocks = []
+    stacked_R = np.empty((n_blocks * K, K), dtype=np.float64)
+
+    for b in range(n_blocks):
+        start = b * block_size
+        end = min(start + block_size, D)
+        block = A[start:end, :]
+        Q_loc, R_loc = np.linalg.qr(block, mode='reduced')
+        Q_local_blocks.append(Q_loc)
+
+        m_loc = R_loc.shape[0]
+        if m_loc == K:
+            stacked_R[b * K:(b + 1) * K, :] = R_loc
+        else:
+            stacked_R[b * K:b * K + m_loc, :] = R_loc
+            stacked_R[b * K + m_loc:(b + 1) * K, :] = 0.0
+
+    Q_top, R_final = np.linalg.qr(stacked_R, mode='reduced')
+
+    Q_full = np.empty((D, K), dtype=np.float64)
+    for b in range(n_blocks):
+        start = b * block_size
+        end = min(start + block_size, D)
+        m_loc = Q_local_blocks[b].shape[1]
+        Q_top_i = Q_top[b * K: b * K + m_loc, :]
+        Q_full[start:end, :] = Q_local_blocks[b] @ Q_top_i
+
+    return Q_full, R_final
+
+
+def estimate_kappa_power(A: np.ndarray, iters: int = 25) -> float:
+    """
+    EstimaciÃ³n determinista de kappa(A) = sigma_max / sigma_min.
+    [FIX-11] RegularizaciÃ³n relativa a sigma_max en lugar de absoluta.
+    """
+    A = _validate_finite_matrix(A, "A")  # [FIX-12]
+    K = A.shape[1]
+    tiny = machine_tiny(np.float64)
+    eps = machine_eps(np.float64)
+
+    G = A.T @ A
+
+    # 1. Sigma max via power iteration
+    x = np.ones(K, dtype=np.float64) / math.sqrt(K)
+    for _ in range(iters):
+        x = G @ x
+        x_norm = np.linalg.norm(x)
+        x /= (x_norm + tiny)
+    sigma_max = math.sqrt(max(0.0, float(x @ (G @ x))))
+
+    # 2. Sigma min via inverse iteration
+    y = np.ones(K, dtype=np.float64) / math.sqrt(K)
+    try:
+        # [FIX-11] RegularizaciÃ³n relativa a sigma_max, no valor absoluto fijo
+        reg_G = G + (100.0 * eps * sigma_max) * np.eye(K)
+        L = np.linalg.cholesky(reg_G)
+        for _ in range(iters):
+            y = np.linalg.solve(L.T, np.linalg.solve(L, y))
+            y_norm = np.linalg.norm(y)
+            y /= (y_norm + tiny)
+        sigma_min = math.sqrt(max(0.0, float(y @ (G @ y))))
+    except np.linalg.LinAlgError:
+        sigma_min = 0.0
+
+    if sigma_min < theta_small(np.float64):
+        return float('inf')
+    return sigma_max / sigma_min
+
+
+def cholesky_qr2(A: np.ndarray) -> np.ndarray:
+    """
+    CholeskyQR2 con cota teÃ³rica V42.1: kappa_safe = 1 / sqrt(eps_f64) ~ 6.7e7.
+    """
+    A = _validate_finite_matrix(A, "A")  # [FIX-12]
+    D, K = A.shape
+    eps_f64 = machine_eps(np.float64)
+    kappa_safe = 1.0 / math.sqrt(eps_f64)
+
+    if K <= 64:
+        kappa_est = float(np.linalg.cond(A))
+    else:
+        kappa_est = estimate_kappa_power(A, iters=20)
+
+    if kappa_est >= kappa_safe:
+        Q, _ = tsqr_blocked(A)
+        return Q
+
+    try:
+        G = A.T @ A
+        L = np.linalg.cholesky(G)
+        Q1 = np.linalg.solve(L, A.T).T
+        G2 = Q1.T @ Q1
+        L2 = np.linalg.cholesky(G2)
+        Q2 = np.linalg.solve(L2, Q1.T).T
+        return Q2
+    except np.linalg.LinAlgError:
+        Q, _ = tsqr_blocked(A)
+        return Q
+
+
+def ortho_gap(Q: np.ndarray) -> Tuple[float, float, bool]:
+    """Mide el gap ||Q^T Q - I_K||_F contra la cota de Higham O(D * eps)."""
+    D, K = Q.shape
+    eps = machine_eps(Q.dtype)
+    tol = 10.0 * float(D) * eps
+    gram = Q.T @ Q
+    gap = float(np.linalg.norm(gram - np.eye(K), 'fro'))
+    return gap, tol, bool(gap > tol)
+
+
+def project_stiefel(Q: np.ndarray) -> np.ndarray:
+    """[FIX-09] ValidaciÃ³n D >= K antes de re-proyecciÃ³n."""
+    D, K = Q.shape
+    if D < K:
+        raise ValueError(f"project_stiefel requiere D >= K. Obtenido D={D}, K={K}")
+    gap, tol, needs = ortho_gap(Q)
+    if needs:
+        Q_new, _ = tsqr_blocked(Q)
+        return Q_new
+    return Q
+
+
+# ============================================================================
+# 6. MEDIA DE FRÃ‰CHET CON DETECCIÃ“N DE DEGENERACIÃ“N
+# ============================================================================
+
+def frechet_mean_sphere(vectors: np.ndarray, max_iters: int = 200,
+                         tol: Optional[float] = None, dtype=np.float64) -> np.ndarray:
+    """
+    Media de FrÃ©chet en S^(D-1) vÃ­a RGD vectorizado con detecciÃ³n de
+    degeneraciÃ³n antipodal.
+    """
+    vectors = _validate_finite_matrix(vectors, "vectors")  # [FIX-12]
+    vectors = np.asarray(vectors, dtype=dtype)
+    if vectors.ndim != 2:
+        raise ValueError("vectors debe ser matriz 2D (N x D)")
+    N, D = vectors.shape
+    eps = machine_eps(dtype)
+    tiny = machine_tiny(dtype)
+
+    if tol is None:
+        tol = 100.0 * eps * math.sqrt(float(D))
+
+    vectors = vectors / (np.linalg.norm(vectors, axis=1, keepdims=True) + tiny)
+
+    # DetecciÃ³n de degeneraciÃ³n antipodal / uniforme
+    mu_ext = np.mean(vectors, axis=0)
+    norm_mu_ext = np.linalg.norm(mu_ext)
+    if norm_mu_ext < 16.0 * eps * math.sqrt(float(D)):
+        raise ValueError(
+            f"DegeneraciÃ³n TopolÃ³gica: DistribuciÃ³n antipodal o uniforme en S^(D-1). "
+            f"Media no Ãºnica (norm_mu={norm_mu_ext:.2e})."
+        )
+
+    mu = mu_ext / norm_mu_ext
+
+    # Cota empÃ­rica conservadora (pi/2)^2 â€” NO usar "Giroux" pi^2/2-2 (falsa)
+    dots_init = np.clip(np.dot(vectors, mu), -1.0, 1.0)
+    omegas_init = np.arccos(dots_init)
+    geo_variance_init = float(np.mean(omegas_init ** 2))
+    max_expected_variance = (math.pi / 2.0) ** 2
+    if geo_variance_init > 0.70 * max_expected_variance and N > 10:
+        raise ValueError(
+            f"DegeneraciÃ³n TopolÃ³gica: La nube de vectores no tiene un baricentro definido "
+            f"(Varianza={geo_variance_init:.4f}). Consenso imposible."
+        )
+
+    for _ in range(max_iters):
+        dots = np.clip(np.dot(vectors, mu), -1.0, 1.0)
+        omegas = np.arccos(dots)
+
+        scale_factors = np.empty(N, dtype=dtype)
+        near_zero_mask = omegas < theta_small(dtype)
+        scale_factors[near_zero_mask] = 1.0 + (omegas[near_zero_mask] ** 2) / 6.0
+
+        normal_mask = ~near_zero_mask
+        sin_omegas = np.sin(omegas[normal_mask])
+        safe_sin = np.where(sin_omegas < theta_small(dtype), 1.0, sin_omegas)
+        scale_factors[normal_mask] = omegas[normal_mask] / safe_sin
+
+        v_proj = vectors - dots[:, None] * mu
+        tangents = scale_factors[:, None] * v_proj
+
+        cut_locus_mask = (np.pi - omegas) < theta_antipodal(dtype)
+        if np.any(cut_locus_mask):
+            for idx in np.where(cut_locus_mask)[0]:
+                # [FIX-14] Usar vectors[idx] para entropÃ­a, no mu
+                v_perturb = deterministic_tangent(vectors[idx]) * (math.pi * 0.01)
+                tangents[idx] = v_perturb
+
+        delta = np.mean(tangents, axis=0)
+        delta_norm = float(np.linalg.norm(delta))
+
+        if delta_norm < tol:
+            break
+
+        step_size = min(delta_norm, math.pi / 4.0)
+        unit_delta = delta / (delta_norm + tiny)
+
+        mu = math.cos(step_size) * mu + math.sin(step_size) * unit_delta
+        mu /= (np.linalg.norm(mu) + tiny)
+
+    return mu
+
+
+# ============================================================================
+# 7. RECEPTOR STATEFUL CON PROTECCIÃ“N ANTI-DOS Y JUMP LIMIT
+# ============================================================================
+
+class PmtpStatefulReceiver:
+    """
+    Receptor Anti-Replay V44 con:
+      - HKDF RFC 5869 real (salt + extract + expand) [FIX-04]
+      - MAX_EPOCH_JUMP anti-DoS de epoch inflation [FIX-05]
+      - Protocolo HMAC unificado con domain separator [FIX-07]
+      - Guarda de longitud de tag [FIX-13]
+      - ValidaciÃ³n de window_size [FIX-10]
+    """
+    MAX_SEQ_JUMP = 1000
+    MAX_EPOCH_JUMP = 10
+    MAX_SEQ_ON_EPOCH_TRANSITION = 100_000
+
+    def __init__(self, master_key: bytes, window_size: int = 64,
+                 salt: Optional[bytes] = None):
+        # [FIX-10]
+        if window_size < 1 or window_size > 256:
+            raise ValueError("window_size debe estar en [1, 256]")
+        self.master_key = master_key
+        # Salt Ãºnico por instancia/nodo [FIX-04]
+        self.salt = salt if salt is not None else os.urandom(64)
+        self.prk = hkdf_extract(self.salt, self.master_key)
+        self.window_size = window_size
+        self.last_epoch = 1
+        self.last_seq = 0
+        self.window_bitmap = 0
+
+    def _derive_epoch_key(self, epoch: int) -> bytes:
+        """[FIX-04] HKDF real, no HMAC directo."""
+        info = b"POLYDIM_PMTP_V42_1_EPOCH_" + int(epoch).to_bytes(8, 'little')
+        return hkdf_expand(self.prk, info, length=64)
+
+    def _make_tag(self, epoch: int, seq: int, payload: bytes, epoch_key: bytes) -> bytes:
+        """[FIX-07] Protocolo PMTP unificado: M = domain || epoch || seq || payload."""
+        header_data = (b"POLYDIM_PMTP_V42_1"
+                       + int(epoch).to_bytes(8, 'little')
+                       + int(seq).to_bytes(8, 'little'))
+        return hmac.new(epoch_key, header_data + payload, hashlib.blake2b).digest()
+
+    def verify_and_accept(self, epoch: int, seq: int, payload: bytes,
+                          tag: bytes) -> Tuple[bool, str]:
+        # [FIX-13] Guardas de tipo y longitud ANTES de cualquier cripto
+        if not isinstance(tag, bytes) or len(tag) != 64:
+            return False, "REJECTED_TAG_INVALID"
+        if not isinstance(payload, bytes):
+            return False, "REJECTED_PAYLOAD_INVALID"
+        if seq < 0:
+            return False, "REJECTED_NEGATIVE_SEQ"
+        if epoch < 1:
+            return False, "REJECTED_INVALID_EPOCH"
+
+        # 1. Barrera de Ã‰poca
+        if epoch < self.last_epoch:
+            return False, "REJECTED_OLD_EPOCH"
+
+        # [FIX-05] Barrera de salto de Ã©poca
+        if epoch > self.last_epoch:
+            if epoch > self.last_epoch + self.MAX_EPOCH_JUMP:
+                return False, "REJECTED_EPOCH_JUMP_TOO_LARGE"
+            if seq > self.MAX_SEQ_ON_EPOCH_TRANSITION:
+                return False, "REJECTED_SEQ_TOO_LARGE_ON_EPOCH_CHANGE"
+
+        # 2. Barrera de Secuencia con MAX_SEQ_JUMP y Bitmap
+        if epoch == self.last_epoch:
+            if seq <= self.last_seq:
+                diff = self.last_seq - seq
+                if diff >= self.window_size:
+                    return False, "REJECTED_WINDOW_EXPIRED"
+                if (self.window_bitmap & (1 << diff)) != 0:
+                    return False, "REJECTED_REPLAY_SEQ"
+            elif seq > self.last_seq + self.MAX_SEQ_JUMP:
+                return False, "REJECTED_SUSPICIOUS_JUMP"
+
+        # 3. VerificaciÃ³n HMAC con protocolo unificado
+        epoch_key = self._derive_epoch_key(epoch)
+        expected_tag = self._make_tag(epoch, seq, payload, epoch_key)
+
+        if not hmac.compare_digest(expected_tag, tag):
+            return False, "CORRUPT_TAG"
+
+        # 4. Actualizar estado y bitmap
+        mask = (1 << self.window_size) - 1
+        if epoch > self.last_epoch:
+            self.last_epoch = epoch
+            self.last_seq = seq
+            self.window_bitmap = 1
+        elif seq > self.last_seq:
+            shift = seq - self.last_seq
+            if shift < self.window_size:
+                self.window_bitmap = ((self.window_bitmap << shift) | 1) & mask
+            else:
+                self.window_bitmap = 1
+            self.last_seq = seq
+        else:
+            diff = self.last_seq - seq
+            self.window_bitmap |= (1 << diff)
+
+        return True, "ACCEPTED"

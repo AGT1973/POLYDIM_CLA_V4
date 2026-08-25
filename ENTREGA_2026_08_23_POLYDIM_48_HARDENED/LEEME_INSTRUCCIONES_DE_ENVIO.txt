@@ -1,0 +1,23 @@
+===============================================================================
+POLYDIM V48.4-ULTIMATE — INSTRUCCIONES DE ENVÍO Y GUÍA DE EJECUCIÓN
+===============================================================================
+Fecha: 2026-08-23 | Autor: Orquestador Antigravity (Pair-programming con Ariel)
+
+1. COMPOSICIÓN DE LA ENTREGA AUTORIZADA (EXACTAMENTE 5 ARCHIVOS):
+   - codigo_consolidado_v48_hardened.txt : Consolidador UTF-8 completo para IAs.
+   - polydim_v48_monolito_fixed.py       : Monolito autocontenido V48.4-ULTIMATE con FFI, AVX-512, JAX y mmap.
+   - WHITEBOOK_POLYDIM_V48_HARDENED.md   : Whitebook matemático y tabla ABI 1:1 C++/Rust.
+   - contexto_historico_v48_hardened.md  : Punto de control final para reinicio limpio de sesión.
+   - LEEME_INSTRUCCIONES_DE_ENVIO.txt    : Este manual de ejecución y verificación.
+
+2. CÓMO COMPILAR Y EJECUTAR LA PRUEBA INTEGRAL:
+   python polydim_v48_monolito_fixed.py --dim 10000 --rank 16
+
+3. CÓMO EJECUTAR EL BENCHMARK DE ESCALABILIDAD HASTA D=10^7:
+   python polydim_v48_monolito_fixed.py --dim 10000000 --benchmark
+
+4. PRUEBAS INCLUIDAS:
+   - Validación Bit-Exact entre C++, Rust y NumPy/JAX GPU.
+   - Verificación de no-solapamiento de punteros anti-aliasing (código -14 POLYDIM_ERR_ALIASING).
+   - Simulación de memoria compartida mmap para PMTP V48.3 (header de 56 bytes).
+===============================================================================

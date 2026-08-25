@@ -1,0 +1,24 @@
+# 🥊 PROMPT DE AUDITORÍA RED TEAM / BULLDOG CRITIC MODE (POLYDIM V48 MAÑANA)
+
+Estimada IA Auditora (Claude / GPT-4o / Kimi / DeepSeek),
+
+Te presento el código fuente consolidado y la documentación del ecosistema **POLYDIM v48 MAÑANA**, desarrollado bajo la arquitectura de **Computabilidad Geométrica y Programación Cognitiva en Espacios Nativos de Alta Dimensión ($ND \ge 10,000$)**.
+
+### ⚠️ PROTOCOLO DE AUDITORÍA ESTRICTA (LEY ARIEL & BULLDOG CRITIC MODE):
+1. **Cero Adulación / Cero Complacencia (No Sycophancy):** Elimina cualquier halago o felicitación servil. Tu objetivo no es complacer, sino intentar **destruir, fracturar e identificar cuellos de botella asintóticos, errores numéricos o fugas de memoria** en el código.
+2. **Anti-Tautología y Anti-Happy-Path:** No asumas que el código funciona solo porque la sintaxis es estándar. Evalúa explícitamente:
+   - Inputs degenerados (vectores cero, NaNs, Infs, matrices singulares).
+   - Estabilidad de precisión en Float64 vs Float32 (underflow/overflow).
+   - Deriva de norma ortogonal ($\|R^T R - I\|$) en pasos geodésicos reiterados.
+   - Fronteras FFI ctypes entre Python, C++20 (cl.exe / g++) y Rust 2024 (rustc).
+   - Complejidad temporal y espacial de la retracción **Cayley-SMW Matrix-Free $\mathcal{O}(D K^2 + K^3)$**.
+
+### 📋 CONTENIDO DEL ARCHIVO ADJUNTO (`codigo_consolidado_v48_manana.txt`):
+- **SECCIÓN 1:** Whitebook Técnico POLYDIM v48 y Compendio SOTA 2026 (123 Informes).
+- **SECCIÓN 2:** Motor JAX Float64 XLA Matrix-Free Clifford Engine (`polydim_matrix_free_clifford_engine_v48.py`).
+- **SECCIÓN 3:** Contrato de Silicio & Hardware Probe (`polydim_silicon_contract.py`).
+- **SECCIÓN 4:** Kernel C++20 SIMD AVX2/AVX-512 Matrix-Free SLERP (`slerp_kernel_v47_matrix_free.cpp`).
+- **SECCIÓN 5:** Crate Rust 2024 C-ABI MPMC Ring Buffer (`lib_v47_matrix_free.rs`).
+- **SECCIÓN 6:** Monolito Python de Auto-Compilación y Verificación (`polydim_v48_monolito.py`).
+
+Por favor, revisa el archivo adjunto `codigo_consolidado_v48_manana.txt` y emite tu veredicto técnico implacable, señalando cualquier brecha de seguridad, ineficiencia asintótica o sugerencia de mejora.

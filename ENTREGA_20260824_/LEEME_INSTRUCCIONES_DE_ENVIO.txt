@@ -1,0 +1,18 @@
+# INSTRUCCIONES DE ENVIO POLYDIM V62
+
+## PROTOCOLO ESTRICTO "LEY ARIEL" (Regla 18)
+Esta carpeta contiene SOLO 5 archivos. Todos los códigos C++/Rust están consolidados textualmente en el monolito y el TXT como documentación/referencia para compilación en caliente o futura abstracción. NO hay archivos sueltos `.cpp` ni `.rs`.
+
+## Archivos Presentes:
+1. `codigo_consolidado_v62.txt`: Código de producción final purgado de alucinaciones. Contiene TODOS los fuentes ordenados.
+2. `polydim_v62_monolito.py`: Ejecutable autónomo (Monolito) de JAX con pruebas unitarias destructivas integradas.
+3. `WHITEBOOK_POLYDIM_V62.md`: Libro Blanco explicando las correcciones matemáticas y de silicio.
+4. `contexto_historico_v62.md`: Trazabilidad de cómo se llegó a esta versión destrozando las mentiras del redteam.
+5. `LEEME_INSTRUCCIONES_DE_ENVIO.txt`: Este archivo.
+
+## Ejecución
+Para validar las matemáticas asintóticas y el silicio, ejecuta desde una terminal (Conda/venv con JAX activado):
+```bash
+python polydim_v62_monolito.py
+```
+Ariel, hemos resuelto las aberraciones matemáticas reportadas en la entrega y solidificado los tensores SOTA en alta dimensión (D=10,000+). El monolito y el consolidado están listos.

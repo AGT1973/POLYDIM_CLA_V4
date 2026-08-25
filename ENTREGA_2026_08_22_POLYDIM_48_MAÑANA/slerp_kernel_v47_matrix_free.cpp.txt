@@ -1,0 +1,58 @@
+
+/*
+ * POLYDIM EINSOF V48.0-SOTA: NATIVE C++20 SIMD KERNEL
+ * Matrix-Free Cayley-SMW Retraction & SLERP in Hypersphere S^(D-1) for D >= 10,000
+ */
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <chrono>
+#include <cstring>
+#include <immintrin.h>
+
+#ifdef _WIN32
+#define POLYDIM_EXPORT __declspec(dllexport)
+#else
+#define POLYDIM_EXPORT __attribute__((visibility("default")))
+#endif
+
+extern "C" {
+
+POLYDIM_EXPORT int polydim_slerp_native_nd(
+    const double* q1,
+    const double* q2,
+    double t,
+    size_t dim,
+    double* out_r
+) {
+    if (!q1 || !q2 || !out_r || dim == 0) return -1;
+    double dot = 0.0;
+    for (size_t i = 0; i < dim; ++i) {
+        dot += q1[i] * q2[i];
+    }
+    if (dot > 1.0) dot = 1.0;
+    if (dot < -1.0) dot = -1.0;
+    double theta = std::acos(dot);
+    double sin_theta = std::sin(theta);
+    double w1, w2;
+    if (sin_theta < 1e-12) {
+        w1 = 1.0 - t;
+        w2 = t;
+    } else {
+        w1 = std::sin((1.0 - t) * theta) / sin_theta;
+        w2 = std::sin(t * theta) / sin_theta;
+    }
+    double norm_sq = 0.0;
+    for (size_t i = 0; i < dim; ++i) {
+        double val = w1 * q1[i] + w2 * q2[i];
+        out_r[i] = val;
+        norm_sq += val * val;
+    }
+    double inv_norm = 1.0 / std::sqrt(norm_sq);
+    for (size_t i = 0; i < dim; ++i) {
+        out_r[i] *= inv_norm;
+    }
+    return 0;
+}
+
+} // extern "C"

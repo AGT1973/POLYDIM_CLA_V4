@@ -644,14 +644,15 @@ class PMTPAgentBridge:
             try:
                 s.close()
             except:
-                pass
-
-if __name__ == "__main__":
-    print("POLYDIM V75 MONOLITH - Arquitectura Swarm (Epoch/INT8) SOTA Lista.")
-
-
-class XLAQuantizer:
-    @staticmethod
-    @jax.jit
-    def quantize_int8_tree_reduce(tensor: jnp.ndarray):
-        " \[SOTA] Reducción Jerárquica O  nativa en TPU/GPU\\n
+ 
+ c l a s s   X L A Q u a n t i z e r :  
+         @ s t a t i c m e t h o d  
+         @ j a x . j i t  
+         d e f   q u a n t i z e _ i n t 8 _ t r e e _ r e d u c e ( t e n s o r :   j n p . n d a r r a y ) :  
+                 ' ' ' [ S O T A ]   R e d u c c i o n   J e r a r q u i c a   O ( l o g   N )   n a t i v a   e n   T P U / G P U ' ' '  
+                 a b s _ m a x   =   j n p . m a x ( j n p . a b s ( t e n s o r ) )  
+                 s a f e _ m a x   =   j n p . w h e r e ( a b s _ m a x   = =   0 ,   1 . 0 ,   a b s _ m a x )  
+                 s c a l e   =   s a f e _ m a x   /   1 2 7 . 0  
+                 q u a n t i z e d   =   j n p . c l i p ( j n p . r o u n d ( t e n s o r   /   s c a l e ) ,   - 1 2 7 ,   1 2 7 ) . a s t y p e ( j n p . i n t 8 )  
+                 r e t u r n   q u a n t i z e d ,   s c a l e  
+ 

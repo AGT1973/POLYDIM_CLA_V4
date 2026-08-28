@@ -1,0 +1,5 @@
+event,clock
+n0_work,"[1, 0, 0]"
+n0_send_n1,"[2, 0, 0]"
+n1_recv_n0,"[2, 1, 0]"
+n2_indep_work,"[0, 0, 1]"

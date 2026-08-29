@@ -1,0 +1,342 @@
+name: POLYDIM V79 CI/CD
+
+on:
+  push:
+    branches: [main, develop, 'release/*']
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Ejecutar tests de seguridad diariamente
+    - cron: '0 6 * * *'
+
+env:
+  PYTHON_VERSION: "3.10"
+  JAX_VERSION: "0.4.20"
+
+jobs:
+  # =========================================================================
+  # JOB 1: LINT Y FORMATO
+  # =========================================================================
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install lint tools
+        run: |
+          pip install black isort flake8 pylint mypy bandit
+
+      - name: Black format check
+        run: black --check --diff .
+
+      - name: isort check
+        run: isort --check-only --diff .
+
+      - name: flake8
+        run: flake8 . --max-line-length=100 --extend-ignore=E203,W503
+
+      - name: pylint
+        run: pylint polydim_v79_*.py --disable=R,C --max-line-length=100
+
+      - name: mypy type check
+        run: mypy polydim_v79_*.py --ignore-missing-imports
+
+      - name: bandit security scan
+        run: bandit -r . -f json -o bandit-report.json || true
+
+      - name: Upload bandit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+  # =========================================================================
+  # JOB 2: TESTS PYTHON
+  # =========================================================================
+  test-python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        jax-backend: ["cpu"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install numpy pytest pytest-cov hypothesis
+          pip install "jax[cpu]==${{ env.JAX_VERSION }}"
+          pip install cryptography  # Para PMTP AEAD
+
+      - name: Run basic tests
+        run: pytest test_polydim_v79.py -v --tb=short
+
+      - name: Run advanced tests
+        run: pytest test_polydim_v79_advanced.py -v --tb=short -x
+
+      - name: Run coverage
+        run: pytest --cov=polydim_v79 --cov-report=xml --cov-report=html
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+
+  # =========================================================================
+  # JOB 3: TESTS C++ (ASAN + Valgrind)
+  # =========================================================================
+  test-cpp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake valgrind
+
+      - name: Build C++ kernel (Debug + ASAN)
+        run: |
+          g++ -O0 -g -fsanitize=address,undefined \
+              -fPIC -shared \
+              kernel_cpp_v79_simd.cpp \
+              -o libpolydim_kernel_cpp_v79.so \
+              -march=native
+
+      - name: Build C++ test runner
+        run: |
+          g++ -O0 -g -fsanitize=address,undefined \
+              test_kernel_cpp.cpp \
+              -L. -lpolydim_kernel_cpp_v79 \
+              -o test_kernel_cpp
+
+      - name: Run C++ tests with ASAN
+        run: |
+          LD_LIBRARY_PATH=. ./test_kernel_cpp
+
+      - name: Run Valgrind memory check
+        run: |
+          LD_LIBRARY_PATH=. valgrind --leak-check=full \
+              --show-leak-kinds=all \
+              --track-origins=yes \
+              ./test_kernel_cpp 2>&1 | tee valgrind.log
+
+      - name: Upload Valgrind report
+        uses: actions/upload-artifact@v4
+        with:
+          name: valgrind-report
+          path: valgrind.log
+
+  # =========================================================================
+  # JOB 4: TESTS RUST
+  # =========================================================================
+  test-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Install clippy
+        run: rustup component add clippy
+
+      - name: Clippy lint
+        run: |
+          cargo clippy --all-features -- -D warnings \
+              -A clippy::missing_safety_doc
+
+      - name: Build Rust kernel
+        run: |
+          cargo build --release --all-features
+
+      - name: Run Rust tests
+        run: |
+          cargo test --all-features --verbose
+
+      - name: Run Miri (undefined behavior detection)
+        run: |
+          rustup component add miri
+          cargo miri test --all-features || true
+
+  # =========================================================================
+  # JOB 5: FUZZING
+  # =========================================================================
+  fuzzing:
+    runs-on: ubuntu-latest
+    needs: [lint, test-python]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install numpy pytest hypothesis
+          pip install "jax[cpu]==${{ env.JAX_VERSION }}"
+
+      - name: Run property-based tests
+        run: |
+          pytest test_polydim_v79_advanced.py::TestPropertyBased -v --tb=short
+
+      - name: Run fuzzing
+        run: |
+          pytest test_polydim_v79_advanced.py::TestFuzzing -v --tb=short
+
+  # =========================================================================
+  # JOB 6: STRESS TESTS
+  # =========================================================================
+  stress-tests:
+    runs-on: ubuntu-latest
+    needs: [test-python]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install numpy pytest
+          pip install "jax[cpu]==${{ env.JAX_VERSION }}"
+          pip install cryptography
+
+      - name: Run stress tests
+        run: |
+          pytest test_polydim_v79_advanced.py::TestStress -v --tb=short
+
+  # =========================================================================
+  # JOB 7: BENCHMARKS (Performance Regression)
+  # =========================================================================
+  benchmarks:
+    runs-on: ubuntu-latest
+    needs: [test-python]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install numpy pytest
+          pip install "jax[cpu]==${{ env.JAX_VERSION }}"
+          pip install cryptography
+
+      - name: Run benchmarks
+        run: |
+          python benchmark_polydim_v79.py | tee benchmark-results.txt
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark-results.txt
+
+  # =========================================================================
+  # JOB 8: SECURITY SCAN
+  # =========================================================================
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # =========================================================================
+  # JOB 9: CROSS-PLATFORM BUILD
+  # =========================================================================
+  cross-platform:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build C++ kernel
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cl /O2 /LD kernel_cpp_v79_simd.cpp /Fepolydim_kernel_cpp_v79.dll
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            clang++ -O3 -shared -fPIC \
+                -arch x86_64 -arch arm64 \
+                kernel_cpp_v79_simd.cpp \
+                -o libpolydim_kernel_cpp_v79.dylib
+          else
+            g++ -O3 -shared -fPIC \
+                kernel_cpp_v79_simd.cpp \
+                -o libpolydim_kernel_cpp_v79.so \
+                -march=native
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ matrix.os }}
+          path: |
+            *.so
+            *.dll
+            *.dylib
+
+  # =========================================================================
+  # JOB 10: RELEASE
+  # =========================================================================
+  release:
+    runs-on: ubuntu-latest
+    needs: [lint, test-python, test-cpp, test-rust, fuzzing, stress-tests, benchmarks]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            *.so
+            *.dll
+            *.dylib
+          body: |
+            POLYDIM V79 Release
+
+            ## Cambios
+            - Ver CHANGELOG.md
+
+            ## Artefactos
+            - Kernels nativos para Linux, Windows, macOS
+            - Python wheels
+
+            ## Verificación
+            ```bash
+            pytest test_polydim_v79.py -v
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

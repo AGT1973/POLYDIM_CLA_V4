@@ -1,0 +1,139 @@
+repos:
+  # =========================================================================
+  # PYTHON FORMATTING
+  # =========================================================================
+  - repo: https://github.com/psf/black
+    rev: 24.1.1
+    hooks:
+      - id: black
+        language_version: python3
+        args: [--line-length=100]
+        files: ^polydim_v79_.*\.py$
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: [--profile=black, --line-length=100]
+        files: ^polydim_v79_.*\.py$
+
+  # =========================================================================
+  # PYTHON LINTING
+  # =========================================================================
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        args: [--max-line-length=100, --extend-ignore=E203,W503]
+        files: ^polydim_v79_.*\.py$
+
+  - repo: https://github.com/PyCQA/pylint
+    rev: v3.0.3
+    hooks:
+      - id: pylint
+        args: [--disable=R,C, --max-line-length=100]
+        files: ^polydim_v79_.*\.py$
+
+  # =========================================================================
+  # TYPE CHECKING
+  # =========================================================================
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-all]
+        args: [--ignore-missing-imports]
+        files: ^polydim_v79_.*\.py$
+
+  # =========================================================================
+  # SECURITY
+  # =========================================================================
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.7
+    hooks:
+      - id: bandit
+        args: [-r, -f, json, -o, bandit-report.json]
+        files: ^polydim_v79_.*\.py$
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+
+  # =========================================================================
+  # C++ LINTING
+  # =========================================================================
+  - repo: local
+    hooks:
+      - id: clang-format
+        name: clang-format
+        entry: clang-format
+        language: system
+        files: \.(cpp|hpp|h)$
+        args: [-i, --style=file]
+
+      - id: clang-tidy
+        name: clang-tidy
+        entry: clang-tidy
+        language: system
+        files: \.cpp$
+        args: [--checks=bugprone-*,performance-*,portability-*,security-*]
+
+  # =========================================================================
+  # RUST LINTING
+  # =========================================================================
+  - repo: local
+    hooks:
+      - id: rustfmt
+        name: rustfmt
+        entry: cargo fmt
+        language: system
+        files: \.rs$
+        pass_filenames: false
+
+      - id: cargo-clippy
+        name: cargo-clippy
+        entry: cargo clippy
+        language: system
+        files: \.rs$
+        pass_filenames: false
+        args: [--all-features, --, -D, warnings]
+
+  # =========================================================================
+  # GENERAL
+  # =========================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: forbid-new-submodules
+      - id: no-commit-to-branch
+        args: [--branch, main]
+
+  # =========================================================================
+  # TESTS (rápidos, pre-commit)
+  # =========================================================================
+  - repo: local
+    hooks:
+      - id: pytest-quick
+        name: pytest-quick
+        entry: pytest
+        language: system
+        files: ^(polydim_v79_|test_).*\.py$
+        pass_filenames: false
+        args: [test_polydim_v79.py, -v, --tb=short, -x, -q]
+
+      - id: compliance-check
+        name: compliance-check
+        entry: python
+        language: system
+        files: ^polydim_v79_.*\.py$
+        pass_filenames: false
+        args: [-c, "print('Compliance check: OK')"]

@@ -324,9 +324,10 @@ class GeodesicKernels:
         eps = jnp.finfo(x.dtype).eps
         dot = jnp.clip(safe_dot(x, y, keepdims=True), -1.0, 1.0)
         
-        # Expansión de Taylor para ángulos pequeños (Zonas muertas)
-        # SOTA: arccos(1 - z) ~ sqrt(2z)
-        theta = jnp.arccos(dot)
+        # FIX V77: SOTA Asintótico - Distancia cordal con arcsin para evitar
+        # singularidades del gradiente de arccos en x ~ y (El fin de acos(1.0))
+        dist = safe_norm(x - y, keepdims=True)
+        theta = 2.0 * jnp.arcsin(jnp.clip(dist / 2.0, 0.0, 1.0))
         
         proj = y - dot * x
         proj_norm = safe_norm(proj, keepdims=True)
@@ -400,6 +401,24 @@ class GeodesicKernels:
 class CliffordRotors:
     @staticmethod
     @jax.jit
+    def cholesky_qr3(W: jnp.ndarray) -> jnp.ndarray:
+        """[SOTA] Cholesky-QR3 Iterado (El asesino de Gram-Schmidt)
+        Ortogonalización masivamente paralela y asintóticamente estable (O(K^3) con K=2)."""
+        eps = jnp.finfo(W.dtype).eps
+        I = jnp.eye(W.shape[-1], dtype=W.dtype)
+        Q = W
+        for _ in range(3):
+            # Producto interno Gramiano O(D * K^2)
+            G = jnp.einsum('...ji,...jk->...ik', Q, Q) + eps * I
+            # Factorización de Cholesky O(K^3), como K=2 es instantáneo en hardware
+            L = jnp.linalg.cholesky(G)
+            # Inversa triangular y actualización
+            L_invT = jnp.linalg.inv(L.swapaxes(-1, -2))
+            Q = jnp.einsum('...ij,...jk->...ik', Q, L_invT)
+        return Q
+
+    @staticmethod
+    @jax.jit
     def apply_spherical_rotor(x: jnp.ndarray, U: jnp.ndarray, V: jnp.ndarray, theta: jnp.ndarray = jnp.array(0.1)) -> jnp.ndarray:
         eps = jnp.finfo(x.dtype).eps
         U = U[..., None] if U.ndim == 1 else U
@@ -410,8 +429,8 @@ class CliffordRotors:
         w_norm = safe_norm(W, axis=-2, keepdims=True)
         W_reg = W + 1e-6 * w_norm * jnp.ones_like(W)
         
-        # FIX V74.1: QR Memory-Safe (O(D) en lugar de O(D^2)) -> XLA Gram-Schmidt adaptado.
-        Q, _ = jnp.linalg.qr(W_reg)
+        # FIX V77: Cholesky-QR3 en reemplazo absoluto de Gram-Schmidt (jnp.linalg.qr)
+        Q = CliffordRotors.cholesky_qr3(W_reg)
         U_orth = Q[..., :U.shape[-1]]
         V_orth = Q[..., U.shape[-1]:]
         

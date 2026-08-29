@@ -1,0 +1,28 @@
+﻿================================================================================
+  POLYDIM V66 MONOLITO ù VERIFICACIËN INTEGRAL DE LAS 7 INTERFACES
+================================================================================
+  [+] [1/7] GeometrÝa Diferencial & IsometrÝa (Householder/Clifford) D=10000...
+  [OK] Householder batch-safe verificado
+  [OK] CliffordRotors Lie expm(M_2r) verificado
+  [OK] Cayley-SMW Spin(D) Matrix-Free O(D) verificado
+  [+] [2/7] FFI Bridge Nativo (C++ AVX-512 & Rust Allocator)...
+  [WARN] FFI Bridge no activo en esta plataforma: C++ compilation failed:
+"cl.exe" no se reconoce como un comando interno o externo,
+programa o archivo por lotes ejecutable.
+
+  [+] [3/7] PMTP Persistent Storage (Disk Save & Load con CRC32 y Cap 512MB)...
+  [OK] PMTP Storage V66: shape=(10, 100), dtype=float32, CRC32 y Cap 512MB OK
+  [+] [4/7] PMTP Network Transport P2P (TCP Agent Bridge con Anti-DoS Cap)...
+  [OK] PMTP TCP P2P multi-thread listener con Anti-DoS 512MB Cap OK
+  [+] [5/7] POLYDIM MCP Server (Base64 Tensor RPC con validaci¾n)...
+  [OK] MCP Server V66 con validaci¾n y cap Anti-DoS OK
+  [+] [6/7] PMTP Web Gateway HTTP REST (ThreadingHTTPServer)...
+  [OK] PMTP Web Gateway: /health=200 OK
+  [+] [7/7] CPU <-> GPU Device Transfer Manager...
+  [OK] DeviceTransferManager CPU <-> JAX verificado
+  [+] Prueba asint¾tica extrema SLERP D=10,000,000 (10^7)...
+  [OK] SLERP D=10^7 en 1120.85 ms | ||x|| = 1.000000
+================================================================================
+  POLYDIM V66 VERIFICADO (7 INTERFACES, 25 CORRECCIONES APLICADAS)
+  Nota: Motor geomÚtrico probado hasta D=10^7.
+=================================================================

@@ -1,0 +1,24 @@
+=====================================================================
+SUITE DE PRUEBAS - INFRAESTRUCTURA POLYDIM
+=====================================================================
+
+Esta carpeta contiene las herramientas de verificación para la suite 
+empírica de POLYDIM.
+
+Ubicación de esta carpeta:
+E:\POLYDIM_EINSOF\pruebas\
+
+Contenido:
+1. run_tests.py: Script que importa dinámicamente el monolito de
+   producción actual (V73) desde su carpeta de entrega oficial y
+   ejecuta las 14 pruebas de la suite de forma aislada.
+
+Instrucciones de Ejecución:
+---------------------------
+Para correr los tests, abre una terminal en esta carpeta y ejecuta:
+
+    python run_tests.py
+
+Esto mantendrá las pruebas desacopladas de los entregables principales,
+respetando el límite de 5 archivos de la LEY ARIEL para la carpeta de
+entrega oficial.

@@ -1,0 +1,4 @@
+INSTRUCCIONES DE ENVIO V68:
+1. El archivo polydim_v68_monolito.py es el monolito definitivo. Contiene todas las correcciones solicitadas en entrega3.md (Bucle 8 Boss Bugs).
+2. No ejecutar en Google Drive. Ejecutar en disco local E:
+3. Limite estricto de 5 archivos respetado.

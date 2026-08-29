@@ -1,0 +1,146 @@
+
+Claude ha terminado la respuesta
+
+WHITEBOOK_POLYDIM_V57.md
+91 líneas
+
+md
+
+
+codigo_consolidado_v57.txt
+264 líneas
+
+txt
+
+
+contexto_historico_v57.md
+34 líneas
+
+md
+
+
+LEEME_INSTRUCCIONES_DE_ENVIO.txt
+24 líneas
+
+txt
+
+
+polydim_v57_monolito.py
+121 líneas
+
+py
+
+lee profundamente, evalua errores, dame soluciones. se un bulldog que ataca al problema pero ayuda al dueño. se un redteam que ataca el problema pero respeta y cuida el que les da el trabajo. /goal busca todo problema, encuentra soluciones dame la mejor continua con el siguiente error
+
+
+Ejecutó 12 comandos, memoria leída
+Ejecutó 12 comandos, memoria leída
+Leí los 5 documentos completos, reconstruí el paquete polydim/ con lo que efectivamente llegó, y ejecuté el código real (no solo lo leí) para separar bugs verificados de ruido. Modo bulldog: ataco el problema, no al que lo mandó. Esto es lo que encontré, en orden de gravedad, con fix probado para cada uno.
+
+🔴 HALLAZGO #17 (CRÍTICO — bloqueante): el paquete entregado no puede correr
+El codigo_consolidado_v57.txt dice en su índice que trae 11 módulos. Reconstruí el árbol de archivos con exactamente lo que contiene el .txt y físicamente termina después de validation.py:
+
+grep "^--- " codigo_consolidado_v57.txt
+1:  polydim/silicon.py     ✓ presente
+2:  polydim/geometry.py    ✓ presente
+3:  polydim/linear.py      ✓ presente
+4:  polydim/clifford.py    ✓ presente
+5:  polydim/hodge.py       ✓ presente
+6:  polydim/validation.py  ✓ presente (pero mal numerado como "6" cuando el índice dice que memory.py es el 6)
+Faltan: polydim/memory.py (todo el PMTP/SWMR/Seqlock — la Sección 2 entera del Whitebook), polydim/__init__.py, test_v57_suite.py, benchmark_asymptotic_10x.py.
+
+Verificación directa: reconstruí el paquete tal cual llegó y traté de importar lo que polydim_v57_monolito.py necesita:
+
+IMPORT ERROR CONFIRMED: cannot import name 'PMTPHeader' from 'polydim'
+Consecuencia dura: el reporte [PASSED] 6.1...6.5 PMTP... y el "100% SUCCESS EN 53.78 SEGUNDOS" del Whitebook no pudo haberse generado con lo que me llegó a mí. O el contexto_historico truncó el archivo al guardarlo/enviarlo, o el codigo_consolidado_v57.txt que se generó para entrega quedó cortado a mitad de proceso. No lo voy a inventar por vos (el layout C-ABI de 64 bytes y el seqlock son demasiado sensibles como para que yo adivine la implementación real que certificaste).
+
+Solución: re-subí polydim/memory.py, __init__.py y test_v57_suite.py completos, o confirmame que reconstruya memory.py desde cero siguiendo exactamente el spec de la Sección 2.1 del Whitebook (<QQIIIIQQ16s>, seqlock par/impar) — pero avisado: sería código nuevo mío, no el que certificaste vos.
+
+🟠 HALLAZGO #18 (ALTO, verificado): log_map colapsa la distancia geodésica cerca del antípoda en vez de divergir a π
+El Whitebook dice "distancia geodésica correcta". Probé puntos progresivamente más cerca del antípoda de x:
+
+eps=1e-03  θ_real=3.140593  |log| medido = 3.1406   ✓ OK
+eps=1e-05  θ_real=3.141583  |log| medido = 0.0702   ✗ debería ser ~3.1416
+eps=1e-07  θ_real=3.141593  |log| medido = 0.0010   ✗ colapsa a ~0
+eps=1e-09  θ_real=3.141593  |log| medido = 0.0007   ✗ colapsa a ~0
+Causa raíz (confirmada paso a paso): dot_clipped = clip(dot, -1+1e-7, ...). Como dot = cos(π-eps) ≈ -1 + eps²/2, para eps < ~4.5e-4 el dot real ya es más extremo que el piso del clip, así que dot_clipped queda fijo en -1+1e-7 sin importar qué tan cerca esté realmente y del antípoda. Esto arma una "zona muerta" angular de radio ~4.5e-4 rad alrededor del antípoda donde log_map devuelve magnitudes chicas y básicamente aleatorias en vez de ~π. No tira NaN — es peor: da un número plausible pero silenciosamente falso. En D=10,000, con datos reales, pares casi-antipodales no son un caso exótico.
+
+Fix verificado (reemplaza log_map completo, uso atan2(‖proj_y‖, dot) que evita la cancelación del arccos con clip):
+
+python
+@staticmethod
+@jit
+def log_map(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    dot = jnp.clip(jnp.einsum('i,i->', x, y), -1.0, 1.0)
+    proj_y = y - dot * x
+    proj_norm = jnp.linalg.norm(proj_y)
+    theta = jnp.arctan2(proj_norm, dot)          # robusto: sin(theta)=||proj_y|| exacto
+    is_identity = proj_norm < 1e-9
+    safe_norm = jnp.where(is_identity, 1.0, proj_norm)
+    return jnp.where(is_identity, jnp.zeros_like(x), (theta / safe_norm) * proj_y)
+Reverifiqué con este fix: sigue θ_real con error ~0 hasta eps=1e-9 (el límite real de precisión float64, no un bug — ahí sí es matemáticamente un punto de medida cero). Mejora de ~5 órdenes de magnitud en el radio de validez respecto al original.
+
+🟠 HALLAZGO #19 (ALTO, verificado): GrassmannianHodge.grassmann_projector amplifica ruido de punto flotante en vez de devolver 0
+El Whitebook (sección 1.1.4) dice que el proyector "devuelve P_Q(x)=0 cuando x∈span(Q) sin inestabilidad numérica". Probé exactamente ese caso:
+
+python
+x_in_span = Q[:,0] * 5.0
+star_x = x_in_span - proj_v      # = [-5.5e-16, 4.4e-16, ...]  (correcto: ~0, ruido de máquina)
+resultado = star_x / norm(star_x)  # norm(star_x) ≈ 1.9e-15 →
+No da NaN (por eso pasa desapercibido en tests que solo chequean isnan), pero convierte ruido de 1e-15 en un vector unitario en una dirección espuria, totalmente distinto en cada corrida. Confirmado con norm(star_x)=1.9e-15 antes de dividir. Es la normalización posterior (return star_x/norm) la que rompe la garantía, algo que OrthogonalProjector.project_orthogonal (que NO normaliza) sí cumple correctamente.
+
+Fix verificado (mismo patrón de guarda que ya usan en HouseholderReflection):
+
+python
+@staticmethod
+@jit
+def grassmann_projector(x, V_k, eps: float = 1e-12):
+    v_tx = jnp.einsum('dk,d->k', V_k, x)
+    proj_v = jnp.einsum('dk,k->d', V_k, v_tx)
+    star_x = x - proj_v
+    norm = jnp.sqrt(jnp.einsum('i,i->', star_x, star_x))
+    safe_norm = jnp.maximum(norm, eps)
+    return jnp.where(norm < eps, jnp.zeros_like(x), star_x / safe_norm)
+🟡 HALLAZGO #20 (MEDIO, verificado): SkewLowRankUpdate/CliffordRotors NO es la transformada de Cayley que dice el Whitebook
+La sección 3.1 del Whitebook promete "Inversión exacta en SO(D)... factor 156,000×". El código real:
+
+python
+bx = U(V^Tx) - V(U^Tx)
+return x - scale * bx     # <-- esto es un paso de Euler de primer orden, NO Cayley exacto
+Medí la deriva de norma directamente:
+
+input norm:  1.0
+output norm: 1.0008628995951934   # drift = 0.086% en una sola aplicación
+No es una rotación exacta — es una aproximación lineal que se sale de la esfera. CliffordRotors.apply_low_rank_rotor "tapa" esto renormalizando después, lo cual evita que la norma derive pero no garantiza ⟨Rx,Ry⟩=⟨x,y⟩ (la isometría real que se certifica es más débil de lo que dice la Whitebook).
+
+Fix verificado: implementé el Cayley exacto vía Woodbury tal como lo promete la Sección 3.1 (O(r²D+r³)), y lo contrasté contra el cálculo denso D×D de referencia — coincide a precisión de máquina (diff=1.4e-16) y preserva norma exacta:
+
+python
+@staticmethod
+@jit
+def apply_cayley_exact(x, U, V):
+    D, r = U.shape
+    W = jnp.concatenate([U, V], axis=1)                  # D x 2r
+    Ir, Zr = jnp.eye(r), jnp.zeros((r, r))
+    K = jnp.block([[Zr, Ir], [-Ir, Zr]])                  # W K W^T = UV^T - VU^T = A
+    Wt = W.T
+    Wt_x = Wt @ x
+    rhs = x + 0.5 * (W @ (K @ Wt_x))                      # (I + A/2) x
+    M = -2.0 * K - (Wt @ W)                                # Woodbury: B^{-1} - W^T W, B=A/2, B^{-1}=-2K
+    return rhs + W @ jnp.linalg.solve(M, Wt @ rhs)         # (I - A/2)^{-1} rhs
+Esto reemplaza la aproximación en linear.py y clifford.py y cumple lo que el Whitebook ya afirma que existe.
+
+Cosas menores que también noté (no bloqueantes)
+LEEME_INSTRUCCIONES_DE_ENVIO.txt sigue hablando de V55 (polydim_v54_monolito.py/v55), quedó desactualizado frente al resto del paquete V57 — riesgo de que quien reciba el ZIP ejecute el binario equivocado.
+La numeración de secciones dentro del propio codigo_consolidado_v57.txt está corrida en 1 desde validation.py en adelante (efecto directo del Hallazgo #17).
+Siguiente paso
+El bug más urgente es el #17: sin memory.py/__init__.py no hay build para certificar nada de lo demás. ¿Subís esos archivos, o querés que reconstruya memory.py yo mismo siguiendo el spec del Whitebook (dejando bien marcado que sería código no certificado por vos todavía)? Mientras tanto puedo seguir el redteam sobre test_v57_suite.py y el benchmark_asymptotic_10x.py en cuanto los tenga.
+
+
+
+Se ha quedado sin mensajes gratuitos hasta las 14:20
+
+
+
+
+Claude es IA y puede cometer errores. Por favor, verifica las respuestas.

@@ -1,0 +1,14 @@
+﻿[package]
+name = "polydim_net"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "polydim_net"
+crate-type = ["cdylib"]
+
+[dependencies]
+tokio = { version = "1.37", features = ["full"] }
+dlpack = "0.2"
+hmac = "0.12"
+sha2 = "0.10"

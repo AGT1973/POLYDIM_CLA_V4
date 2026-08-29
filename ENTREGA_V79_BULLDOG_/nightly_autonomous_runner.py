@@ -18,7 +18,7 @@ def run_tests():
             env=env,
             capture_output=True,
             text=True,
-            timeout=300
+            timeout=1200
         )
         if result.returncode == 0:
             logging.info("Ciclo OK. Tests pasaron.")

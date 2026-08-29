@@ -1,0 +1,9 @@
+LEEME - INSTRUCCIONES DE ENVIO V73
+Este directorio contiene la versión de producción V73.
+Composición de entrega autorizada:
+1. codigo_consolidado_v73.txt (Consolidado total: Whitebook + Python + Rust + C++)
+2. polydim_v73_monolito.py (Monolito ejecutable con FFI y JAX)
+3. WHITEBOOK_POLYDIM_V73.md (Libro blanco e instrucciones críticas de contexto)
+4. contexto_historico_v73.md (Historial evolutivo)
+5. LEEME_INSTRUCCIONES_DE_ENVIO.txt (Este archivo explicativo)
+No se permiten fuentes sueltos .rs o .cpp en el directorio para cumplir la LEY ARIEL de orden y zero-waste.

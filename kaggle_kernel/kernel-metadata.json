@@ -1,5 +1,5 @@
 {
-  "id": "polydimailenguage/polydim-hardware-benchmark-tpu",
+  "id": "tradingnewtech/polydim-hardware-benchmark-tpu",
   "title": "POLYDIM Hardware Benchmark TPU",
   "code_file": "benchmark.py",
   "language": "python",

@@ -1,0 +1,81 @@
+2026-08-28 21:56:28,661 - Nightly Autonomous Runner Iniciado (D=10^6 ready)
+2026-08-28 21:56:28,661 - --- Iteracion 1 ---
+2026-08-28 21:56:28,662 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-28 22:01:29,567 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 300 seconds
+2026-08-28 22:01:59,643 - --- Iteracion 2 ---
+2026-08-28 22:01:59,643 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-28 22:06:59,844 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 300 seconds
+2026-08-28 22:07:29,845 - --- Iteracion 3 ---
+2026-08-28 22:07:29,845 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-28 22:12:29,924 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 300 seconds
+2026-08-28 22:12:59,925 - --- Iteracion 4 ---
+2026-08-28 22:12:59,925 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-28 22:15:32,105 - Nightly Autonomous Runner Iniciado (D=10^6 ready)
+2026-08-28 22:15:32,105 - --- Iteracion 1 ---
+2026-08-28 22:15:32,105 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-28 22:35:32,200 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-28 22:36:02,201 - --- Iteracion 2 ---
+2026-08-28 22:36:02,201 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-28 22:56:02,289 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-28 22:56:32,290 - --- Iteracion 3 ---
+2026-08-28 22:56:32,290 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-28 23:16:32,383 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-28 23:17:02,384 - --- Iteracion 4 ---
+2026-08-28 23:17:02,384 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-28 23:37:02,476 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-28 23:37:32,481 - --- Iteracion 5 ---
+2026-08-28 23:37:32,481 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-28 23:57:32,562 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-28 23:58:02,563 - --- Iteracion 6 ---
+2026-08-28 23:58:02,563 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 00:18:02,655 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 00:18:32,656 - --- Iteracion 7 ---
+2026-08-29 00:18:32,656 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 00:38:32,746 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 00:39:02,780 - --- Iteracion 8 ---
+2026-08-29 00:39:02,780 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 00:59:02,883 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 00:59:32,884 - --- Iteracion 9 ---
+2026-08-29 00:59:32,884 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 01:19:32,978 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 01:20:02,979 - --- Iteracion 10 ---
+2026-08-29 01:20:02,979 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 01:40:03,105 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 01:40:33,109 - --- Iteracion 11 ---
+2026-08-29 01:40:33,109 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 02:00:33,187 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 02:01:03,188 - --- Iteracion 12 ---
+2026-08-29 02:01:03,188 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 02:21:03,272 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 02:21:33,272 - --- Iteracion 13 ---
+2026-08-29 02:21:33,273 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 02:41:33,359 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 02:42:03,360 - --- Iteracion 14 ---
+2026-08-29 02:42:03,360 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 03:02:03,447 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 03:02:33,448 - --- Iteracion 15 ---
+2026-08-29 03:02:33,448 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 03:22:33,535 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 03:23:03,537 - --- Iteracion 16 ---
+2026-08-29 03:23:03,537 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 03:43:03,625 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 03:43:33,625 - --- Iteracion 17 ---
+2026-08-29 03:43:33,626 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 04:03:33,706 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 04:04:03,706 - --- Iteracion 18 ---
+2026-08-29 04:04:03,706 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 04:24:03,799 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 04:24:33,800 - --- Iteracion 19 ---
+2026-08-29 04:24:33,800 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 04:44:33,880 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 04:45:03,881 - --- Iteracion 20 ---
+2026-08-29 04:45:03,881 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 05:05:03,966 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 05:05:33,967 - --- Iteracion 21 ---
+2026-08-29 05:05:33,967 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 05:25:34,065 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 05:26:04,066 - --- Iteracion 22 ---
+2026-08-29 05:26:04,066 - Iniciando ciclo de stress (pytest) sobre V79 Fixed
+2026-08-29 05:46:04,157 - Error critico en runner: Command '['C:\\Python314\\python.exe', '-m', 'pytest', 'E:\\POLYDIM_EINSOF\\ENTREGA_V79_BULLDOG_\\test_polydim_v79.py', '-v']' timed out after 1200 seconds
+2026-08-29 05:46:34,161 - --- Iteracion 23 ---
+2026-08-29 05:46:34,161 - Iniciando ciclo de stress (pytest) sobre V79 Fixed

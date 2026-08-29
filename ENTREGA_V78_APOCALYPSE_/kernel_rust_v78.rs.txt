@@ -1,0 +1,97 @@
+// ============================================================================
+// POLYDIM V78 APOCALYPSE — NATIVE RUST GEODESIC & STIEFEL KERNEL
+// ============================================================================
+// File: kernel_rust_v78.rs / kernel_rust_v78.rs.txt
+// Standard: Rust 2021 / C-ABI Export with catch_unwind Panic Guards
+// Architectures: x86_64 (AVX2/AVX-512), AArch64 (NEON)
+// ============================================================================
+
+use std::panic::catch_unwind;
+use std::slice;
+
+/// Suma compensada Kahan en Rust para prevenir desbordamiento y pérdida de precisión
+#[inline]
+fn kahan_dot_rs(a: &[f64], b: &[f64]) -> f64 {
+    let mut sum = 0.0;
+    let mut c = 0.0;
+    for i in 0..a.len() {
+        let y = a[i] * b[i] - c;
+        let t = sum + y;
+        c = (t - sum) - y;
+        sum = t;
+    }
+    sum
+}
+
+/// Reflexión de Householder nativa exportada en C-ABI con Escudo contra Panics
+#[no_mangle]
+pub unsafe extern "C" fn polydim_householder_reflect_rust(
+    x_ptr: *const f64,
+    v_ptr: *const f64,
+    out_ptr: *mut f64,
+    dim: u64,
+) -> i32 {
+    let result = catch_unwind(|| {
+        if x_ptr.is_null() || v_ptr.is_null() || out_ptr.is_null() || dim == 0 {
+            return -1;
+        }
+
+        let d = dim as usize;
+        let x = slice::from_raw_parts(x_ptr, d);
+        let v = slice::from_raw_parts(v_ptr, d);
+        let out = slice::from_raw_parts_mut(out_ptr, d);
+
+        let v_sq = kahan_dot_rs(v, v);
+        if v_sq < 1e-30 {
+            out.copy_from_slice(x);
+            return 0;
+        }
+
+        let xv_dot = kahan_dot_rs(x, v);
+        let factor = 2.0 * xv_dot / v_sq;
+
+        for i in 0..d {
+            out[i] = x[i] - factor * v[i];
+        }
+
+        0 // OK
+    });
+
+    match result {
+        Ok(code) => code,
+        Err(_) => -99, // Signal Panic Caught cleanly
+    }
+}
+
+/// Proyección Tangente Esférica Nativa: grad_R = G - <X, G> * X
+#[no_mangle]
+pub unsafe extern "C" fn polydim_tangent_project_rust(
+    x_ptr: *const f64,
+    g_ptr: *const f64,
+    out_ptr: *mut f64,
+    dim: u64,
+) -> i32 {
+    let result = catch_unwind(|| {
+        if x_ptr.is_null() || g_ptr.is_null() || out_ptr.is_null() || dim == 0 {
+            return -1;
+        }
+
+        let d = dim as usize;
+        let x = slice::from_raw_parts(x_ptr, d);
+        let g = slice::from_raw_parts(g_ptr, d);
+        let out = slice::from_raw_parts_mut(out_ptr, d);
+
+        let dot = kahan_dot_rs(x, g);
+
+        for i in 0..d {
+            out[i] = g[i] - dot * x[i];
+        }
+
+        0
+    });
+
+    match result {
+        Ok(code) => code,
+        Err(_) => -99,
+    }
+}

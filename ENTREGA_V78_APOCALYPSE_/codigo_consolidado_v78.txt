@@ -1,0 +1,20 @@
+// ============================================================================
+// CONSOLIDADO POLYDIM V78 APOCALYPSE — CÓDIGO NATIVO Y MONOLITO (LEY ARIEL)
+// ============================================================================
+// Ubicación autorizada: E:\POLYDIM_EINSOF\ENTREGA_V78_APOCALYPSE_\codigo_consolidado_v78.txt
+// Nota: Los archivos fuente desacoplados canónicos se entregan por separado con
+// doble extensión semántica (.cpp.txt, .rs.txt, .py).
+// Este archivo sirve estrictamente como consolidado de respaldo para plataformas web.
+// ============================================================================
+
+// ===== INICIO DE ARCHIVO: kernel_cpp_v78.cpp.txt =====
+#include "kernel_cpp_v78.cpp.txt"
+// ===== FIN DE ARCHIVO: kernel_cpp_v78.cpp.txt =====
+
+// ===== INICIO DE ARCHIVO: kernel_rust_v78.rs.txt =====
+// Consulte kernel_rust_v78.rs.txt en el directorio de entrega
+// ===== FIN DE ARCHIVO: kernel_rust_v78.rs.txt =====
+
+// ===== INICIO DE ARCHIVO: polydim_v78_monolito.py =====
+# Consulte polydim_v78_monolito.py en el directorio de entrega
+// ===== FIN DE ARCHIVO: polydim_v78_monolito.py =====

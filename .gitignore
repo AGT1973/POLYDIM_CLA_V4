@@ -1,10 +1,29 @@
-_HISTORICO/
-_HISTORICO/*
-*.dat
-*.npy
-*.pt
-*.bin
+# POLYDIM - Git Ignore
+# Telemetría y logs de runners nocturnos (no pertenecen al repo)
+REPORTES/reporte_nocturno_iter_*.md
+SOTA_TEMP/nightly_runner.log
+SOTA_TEMP/latest_failure.txt
+
+# Binarios compilados (se reconstruyen con cargo build)
+ENTREGA_*/polydim_rust_net/target/
 *.dll
+*.so
+*.dylib
+*.pdb
+*.exp
+*.lib
 *.exe
-*.pyc
+
+# Archivos temporales de Python
 __pycache__/
+*.pyc
+.pytest_cache/
+
+# Scripts de parche one-shot
+patch_*.py
+apply_*.py
+fix_*.py
+refactor_*.py
+
+# Matrix state (regenerable)
+matrix_state/

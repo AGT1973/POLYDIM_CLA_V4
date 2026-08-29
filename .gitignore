@@ -25,5 +25,11 @@ apply_*.py
 fix_*.py
 refactor_*.py
 
-# Matrix state (regenerable)
+# Matrix state & API Key pools (regenerable y confidenciales)
 matrix_state/
+*_state.json
+api_keys_pool.json
+.env
+.env.*
+_HISTORICO/
+

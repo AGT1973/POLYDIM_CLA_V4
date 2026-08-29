@@ -291,29 +291,22 @@ if HAS_JAX:
         xu = x / jnp.maximum(GeodesicKernels.safe_norm(x, keepdims=True, eps=eps), eps)
         yu = y / jnp.maximum(GeodesicKernels.safe_norm(y, keepdims=True, eps=eps), eps)
 
-        def cond_fun(state):
-            i, v, err = state
-            valid = jnp.isfinite(err) & jnp.all(jnp.isfinite(v))
-            return jnp.logical_and(jnp.logical_and(i < max_iter, err > 1e-12), valid)
-
-        def body_fun(state):
-            i, v, _ = state
+        def body_fun(i, state):
+            v, err = state
             y_approx = GeodesicKernels.exp_map(xu, v)
             res = GeodesicKernels.log_map(y_approx, yu)
-            # Reemplazar NaN por zeros para evitar poison
-            res = jnp.where(jnp.isnan(res), jnp.zeros_like(res), res)
+            has_nan = jnp.any(jnp.isnan(res))
             c = GeodesicKernels.safe_dot(y_approx, xu, keepdims=True)
             safe_denom = jnp.where(jnp.abs(1.0 + c) < eps, 1.0, 1.0 + c)
             trans_res = res - (GeodesicKernels.safe_dot(res, y_approx + xu, keepdims=True) / safe_denom) * (y_approx + xu)
             v_new = v + trans_res
             v_new = v_new - GeodesicKernels.safe_dot(v_new, xu, keepdims=True) * xu
-            err = jnp.max(GeodesicKernels.safe_norm(res, keepdims=False, eps=eps))
-            return i + 1, v_new, err
+            err = jnp.max(jnp.where(jnp.isnan(trans_res), 0.0, GeodesicKernels.safe_norm(trans_res, keepdims=False, eps=eps)))
+            err = jnp.where(has_nan, 0.0, err)
+            v_new = jnp.where(has_nan, jnp.nan, v_new)
+            return v_new, err
 
-        v_init = GeodesicKernels.log_map(xu, yu)
-        v_init = jnp.where(jnp.isnan(v_init), jnp.zeros_like(v_init), v_init)
-        err_init = 1.0
-        _, v_final, _ = lax.while_loop(cond_fun, body_fun, (0, v_init, err_init))
+        v_final, _ = lax.fori_loop(0, max_iter, body_fun, (v_init, 1.0))
         return v_final
 
     def _log_map_newton_fwd(x, y, max_iter):
